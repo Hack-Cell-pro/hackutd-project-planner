@@ -5,12 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import type { LogEvent, State } from "@/lib/engine";
 
 const ALERT_KINDS: Record<string, { freq: number; ms: number }> = {
-  report: { freq: 660, ms: 120 },
-  escalate: { freq: 880, ms: 200 },
-  disaster: { freq: 440, ms: 350 },
-  arrive: { freq: 520, ms: 150 },
-  resolve: { freq: 740, ms: 150 },
-  cancel: { freq: 300, ms: 150 },
+  round: { freq: 520, ms: 150 },
+  clue: { freq: 660, ms: 120 },
+  correct: { freq: 880, ms: 250 },
+  reveal: { freq: 440, ms: 250 },
+  final: { freq: 740, ms: 400 },
 };
 
 let ctx: AudioContext | null = null;
@@ -63,14 +62,14 @@ export function useEventAlerts(state: State | null): Alert | null {
 
 export function AlertBanner({ alert }: { alert: Alert | null }) {
   if (!alert) return null;
-  const hot = alert.kind === "escalate" || alert.kind === "disaster";
+  const hot = alert.kind === "correct" || alert.kind === "final";
   return (
     <div
       className={`pointer-events-none fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-md border px-4 py-2 font-mono text-sm shadow-lg ${
-        hot ? "border-destructive bg-card text-destructive" : "border-accent bg-card text-accent"
+        hot ? "border-accent bg-card text-accent" : "border-primary bg-card text-primary"
       }`}
     >
-      {hot ? "▲ " : "● "}{alert.text}
+      {hot ? "★ " : "● "}{alert.text}
     </div>
   );
 }

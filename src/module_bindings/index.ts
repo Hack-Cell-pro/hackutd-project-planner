@@ -34,21 +34,19 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
-import AssignUnitReducer from "./assign_unit_reducer";
-import CancelIncidentReducer from "./cancel_incident_reducer";
-import ClaimUnitReducer from "./claim_unit_reducer";
 import JoinReducer from "./join_reducer";
-import ReportIncidentReducer from "./report_incident_reducer";
-import ResolveIncidentReducer from "./resolve_incident_reducer";
-import TriggerDisasterReducer from "./trigger_disaster_reducer";
+import ResetGameReducer from "./reset_game_reducer";
+import StartGameReducer from "./start_game_reducer";
+import SubmitClueReducer from "./submit_clue_reducer";
+import SubmitGuessReducer from "./submit_guess_reducer";
 
 // Import all procedure arg schemas
 
 // Import all table schema definitions
 import EventLogRow from "./event_log_table";
-import IncidentRow from "./incident_table";
+import GameRow from "./game_table";
+import GuessRow from "./guess_table";
 import PlayerRow from "./player_table";
-import UnitRow from "./unit_table";
 
 /** Type-only namespace exports for generated type groups. */
 
@@ -65,17 +63,28 @@ const tablesSchema = __schema({
       { name: 'event_log_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, EventLogRow),
-  incident: __table({
-    name: 'incident',
+  game: __table({
+    name: 'game',
     indexes: [
-      { accessor: 'id', name: 'incident_id_idx_btree', algorithm: 'btree', columns: [
+      { accessor: 'id', name: 'game_id_idx_btree', algorithm: 'btree', columns: [
         'id',
       ] },
     ],
     constraints: [
-      { name: 'incident_id_key', constraint: 'unique', columns: ['id'] },
+      { name: 'game_id_key', constraint: 'unique', columns: ['id'] },
     ],
-  }, IncidentRow),
+  }, GameRow),
+  guess: __table({
+    name: 'guess',
+    indexes: [
+      { accessor: 'id', name: 'guess_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'guess_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, GuessRow),
   player: __table({
     name: 'player',
     indexes: [
@@ -87,28 +96,15 @@ const tablesSchema = __schema({
       { name: 'player_identity_key', constraint: 'unique', columns: ['identity'] },
     ],
   }, PlayerRow),
-  unit: __table({
-    name: 'unit',
-    indexes: [
-      { accessor: 'id', name: 'unit_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-    ],
-    constraints: [
-      { name: 'unit_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, UnitRow),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
-  __reducerSchema("assign_unit", AssignUnitReducer),
-  __reducerSchema("cancel_incident", CancelIncidentReducer),
-  __reducerSchema("claim_unit", ClaimUnitReducer),
   __reducerSchema("join", JoinReducer),
-  __reducerSchema("report_incident", ReportIncidentReducer),
-  __reducerSchema("resolve_incident", ResolveIncidentReducer),
-  __reducerSchema("trigger_disaster", TriggerDisasterReducer),
+  __reducerSchema("reset_game", ResetGameReducer),
+  __reducerSchema("start_game", StartGameReducer),
+  __reducerSchema("submit_clue", SubmitClueReducer),
+  __reducerSchema("submit_guess", SubmitGuessReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
@@ -167,4 +163,3 @@ export class DbConnection extends __DbConnectionImpl<typeof REMOTE_MODULE> {
     return new SubscriptionBuilder(this);
   };
 }
-

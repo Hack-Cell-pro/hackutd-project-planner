@@ -11,5 +11,5 @@ import {
 } from "spacetimedb";
 
 export default {
-  incidentId: __t.u64(),
+  clue: __t.string(),
 };

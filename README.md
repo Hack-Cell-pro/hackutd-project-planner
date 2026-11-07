@@ -1,49 +1,43 @@
-# FirstWave — live emergency dispatch, powered by SpacetimeDB
+# Emoji Charades 🎭
 
-**HackUTD 2026 · Spacetime track**
+A live party game for the whole room: one player gets a secret phrase and can only describe it
+with **emojis** — everyone else races to guess on their phones. Fastest correct guess wins the
+most points, and the cluer scores when someone cracks their clue.
 
-FirstWave is a multiplayer disaster-response command center. Callers drop pins on a live
-city map, dispatchers assign units from a self-ranking priority queue, and responders crew
-units and close calls. Every screen updates instantly — and every rule of the game runs
-**inside SpacetimeDB**, not in a web server we wrote.
+Built for **HackUTD 2026 — Spacetime Main Track**. Every game rule runs inside **SpacetimeDB**:
+the round clock, the emoji-only rule, guess checking, and scoring. The web app is just a window
+into the database — every screen subscribes to it, so a clue sent from one phone appears on
+every screen in the room instantly.
 
-## Why Spacetime is the backend, not a sidecar
+## How a round works
 
-All dispatch logic lives in the Spacetime module (`spacetime/firstwave/src/index.ts`):
+1. **Everyone joins** — open the link, type a name, done. The first player in becomes the host.
+2. **The cluer gets a secret phrase** — something silly like "Talking while muted" or
+   "Distracted boyfriend" — and describes it with emojis only (letters are rejected server-side).
+3. **The room races to guess** — 60 seconds on the clock. A correct guess scores
+   100 + a speed bonus; the cluer gets 50 when someone cracks it.
+4. Everyone gets one turn as cluer, then the final leaderboard crowns the winner.
+
+## Why Spacetime is the backend (not just chat)
 
 | Rule | Where it runs |
 | --- | --- |
-| Only dispatchers can assign units; a busy unit can't be double-sent | `assign_unit` reducer |
-| Incidents ignored for 60s raise their own severity | scheduled `tick` reducer (every 500ms) |
-| Units travel toward their target and arrive on a live ETA | scheduled `tick` reducer |
-| Response-time scoring and dispatcher half-credit | `resolve_incident` reducer |
-| Storm cells that flood the map with incidents | `trigger_disaster` reducer |
-| Presence (who's online) | `client_connected` / `client_disconnected` hooks |
+| Round clock (clue 30s / guess 60s / reveal 8s) | Scheduled `tick` reducer inside SpacetimeDB |
+| Emoji-only clues | `submit_clue` reducer rejects letters and numbers |
+| Guess matching (case/punctuation/plural-insensitive) | `submit_guess` reducer, against a private phrase table |
+| Speed scoring + cluer bonus | Computed in `submit_guess` where the data lives |
+| Host-only start/reset, turn rotation | Enforced by reducers, not the UI |
 
-The front end holds no game state of its own — it subscribes to tables and calls reducers.
+## Architecture
 
 ```text
- phone (caller)        laptop (dispatcher)       big screen (judges)
-      │                       │                        │
-      └───────────┬───────────┴────────────────────────┘
-                  │   WebSocket subscriptions + reducer calls
-                  ▼
-        ┌───────────────────────┐
-        │      SpacetimeDB      │
-        │  ┌─────────────────┐  │
-        │  │ tables: player, │  │
-        │  │ incident, unit, │  │
-        │  │ event_log, tick │  │
-        │  └─────────────────┘  │
-        │  reducers: join,      │
-        │  report_incident,     │
-        │  assign_unit,         │
-        │  claim_unit,          │
-        │  resolve_incident,    │
-        │  cancel_incident,     │
-        │  trigger_disaster,    │
-        │  tick (scheduled)     │
-        └───────────────────────┘
+phones + laptops + big screen
+        │  subscribeToAllTables() + reducer calls
+        ▼
+┌─────────────────────────────── SpacetimeDB (Maincloud) ───────────────────────────────┐
+│ tables: player · game · phrase (private) · guess · event_log · tick_schedule           │
+│ reducers: join · start_game · submit_clue · submit_guess · reset_game · tick (500ms)   │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Run it
@@ -53,30 +47,29 @@ npm install
 npm run dev
 ```
 
-Open `/` to join as a caller, dispatcher or responder, and `/board` for the big-screen view.
+Open `/` to play, `/board` for the projector view.
 
-## Publish the Spacetime module
+## Publish the backend
 
 ```bash
-curl -sSf https://install.spacetimedb.com | sh
-spacetime login
 cd spacetime/firstwave
+npm install
 spacetime publish --server maincloud firstwave
-spacetime generate --lang typescript --out-dir ../../src/module_bindings
 ```
 
-The app ships with a browser stand-in (`src/lib/engine.ts`) that mirrors every reducer
-name and rule one-to-one, so swapping in the generated bindings is mechanical.
+`src/lib/engine.ts` is a browser stand-in that mirrors the module reducer-for-reducer, so the
+game is fully testable offline; `src/lib/live.ts` is the real Maincloud client with the same API.
+
+## Tests
+
+```bash
+bunx vitest run                                  # app + game-rule tests (14)
+cd spacetime/firstwave && bunx vitest run --config vitest.config.ts   # module tests in SpacetimeDB's runtime (5)
+```
 
 ## Demo script (2 minutes)
 
-1. Open `/board` on the big screen.
-2. A teammate reports a fire from their phone — it appears everywhere instantly.
-3. The dispatcher assigns the nearest unit; the ETA counts down live.
-4. Leave one incident untouched — it escalates by itself after 60 seconds.
-5. Hit **Disaster mode** and watch the room scramble.
-6. Close with: "No web server, no websockets we wrote — all logic runs in Spacetime."
-
-## Built with
-
-TanStack Start · React · Tailwind CSS · SpacetimeDB (TypeScript module)
+1. Big screen on the projector, lobby showing players joining live from their phones.
+2. Host starts — the cluer's phone shows the secret phrase, everyone else sees them "picking emojis".
+3. Clue lands on every screen at once; guesses fly in; someone cracks it — scores update live.
+4. Show the leaderboard, then reset and let the judges play a round themselves.

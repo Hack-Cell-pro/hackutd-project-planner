@@ -10,6 +10,4 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default {
-  incidentId: __t.u64(),
-};
+export default {};

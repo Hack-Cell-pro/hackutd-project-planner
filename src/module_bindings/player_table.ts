@@ -13,7 +13,7 @@ import {
 export default __t.row({
   identity: __t.identity().primaryKey(),
   name: __t.string(),
-  role: __t.string(),
   score: __t.u32(),
   online: __t.bool(),
+  isHost: __t.bool().name("is_host"),
 });
