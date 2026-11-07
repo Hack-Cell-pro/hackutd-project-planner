@@ -12,5 +12,4 @@ import {
 
 export default {
   name: __t.string(),
-  role: __t.string(),
 };

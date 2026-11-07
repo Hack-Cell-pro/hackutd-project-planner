@@ -6,19 +6,14 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
-import AssignUnitReducer from "../assign_unit_reducer";
-import CancelIncidentReducer from "../cancel_incident_reducer";
-import ClaimUnitReducer from "../claim_unit_reducer";
 import JoinReducer from "../join_reducer";
-import ReportIncidentReducer from "../report_incident_reducer";
-import ResolveIncidentReducer from "../resolve_incident_reducer";
-import TriggerDisasterReducer from "../trigger_disaster_reducer";
+import ResetGameReducer from "../reset_game_reducer";
+import StartGameReducer from "../start_game_reducer";
+import SubmitClueReducer from "../submit_clue_reducer";
+import SubmitGuessReducer from "../submit_guess_reducer";
 
-export type AssignUnitParams = __Infer<typeof AssignUnitReducer>;
-export type CancelIncidentParams = __Infer<typeof CancelIncidentReducer>;
-export type ClaimUnitParams = __Infer<typeof ClaimUnitReducer>;
 export type JoinParams = __Infer<typeof JoinReducer>;
-export type ReportIncidentParams = __Infer<typeof ReportIncidentReducer>;
-export type ResolveIncidentParams = __Infer<typeof ResolveIncidentReducer>;
-export type TriggerDisasterParams = __Infer<typeof TriggerDisasterReducer>;
-
+export type ResetGameParams = __Infer<typeof ResetGameReducer>;
+export type StartGameParams = __Infer<typeof StartGameReducer>;
+export type SubmitClueParams = __Infer<typeof SubmitClueReducer>;
+export type SubmitGuessParams = __Infer<typeof SubmitGuessReducer>;

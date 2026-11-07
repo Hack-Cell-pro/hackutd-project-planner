@@ -19,28 +19,38 @@ export const EventLog = __t.object("EventLog", {
 });
 export type EventLog = __Infer<typeof EventLog>;
 
-export const Incident = __t.object("Incident", {
+export const Game = __t.object("Game", {
   id: __t.u64(),
-  kind: __t.string(),
-  severity: __t.u8(),
-  x: __t.f32(),
-  y: __t.f32(),
-  note: __t.string(),
-  status: __t.string(),
-  createdAt: __t.timestamp(),
-  lastEscalated: __t.timestamp(),
-  unitId: __t.option(__t.u64()),
-  assignedBy: __t.option(__t.identity()),
-  reporter: __t.string(),
+  phase: __t.string(),
+  round: __t.u32(),
+  totalRounds: __t.u32(),
+  cluer: __t.option(__t.identity()),
+  cluerName: __t.string(),
+  phrase: __t.string(),
+  clue: __t.string(),
+  phaseEndsAt: __t.u64(),
+  winnerName: __t.string(),
 });
-export type Incident = __Infer<typeof Incident>;
+export type Game = __Infer<typeof Game>;
+
+export const Guess = __t.object("Guess", {
+  id: __t.u64(),
+  player: __t.identity(),
+  playerName: __t.string(),
+  round: __t.u32(),
+  text: __t.string(),
+  correct: __t.bool(),
+  answeredAt: __t.u64(),
+  points: __t.u32(),
+});
+export type Guess = __Infer<typeof Guess>;
 
 export const Player = __t.object("Player", {
   identity: __t.identity(),
   name: __t.string(),
-  role: __t.string(),
   score: __t.u32(),
   online: __t.bool(),
+  isHost: __t.bool(),
 });
 export type Player = __Infer<typeof Player>;
 
@@ -49,20 +59,3 @@ export const TickSchedule = __t.object("TickSchedule", {
   scheduledAt: __t.scheduleAt(),
 });
 export type TickSchedule = __Infer<typeof TickSchedule>;
-
-export const Unit = __t.object("Unit", {
-  id: __t.u64(),
-  callsign: __t.string(),
-  kind: __t.string(),
-  x: __t.f32(),
-  y: __t.f32(),
-  status: __t.string(),
-  owner: __t.option(__t.identity()),
-  targetId: __t.option(__t.u64()),
-  fromX: __t.f32(),
-  fromY: __t.f32(),
-  departAt: __t.u64(),
-  etaAt: __t.u64(),
-});
-export type Unit = __Infer<typeof Unit>;
-

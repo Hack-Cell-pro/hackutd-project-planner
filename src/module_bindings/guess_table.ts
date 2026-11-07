@@ -10,10 +10,13 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default {
-  kind: __t.string(),
-  severity: __t.u8(),
-  x: __t.f32(),
-  y: __t.f32(),
-  note: __t.string(),
-};
+export default __t.row({
+  id: __t.u64().primaryKey(),
+  player: __t.identity(),
+  playerName: __t.string().name("player_name"),
+  round: __t.u32(),
+  text: __t.string(),
+  correct: __t.bool(),
+  answeredAt: __t.u64().name("answered_at"),
+  points: __t.u32(),
+});
