@@ -53,10 +53,10 @@ function Index() {
           className="mt-10 space-y-6"
           onSubmit={(e) => {
             e.preventDefault();
-            try {
-              join(name, role);
-              nav({ to: role === "spectator" ? "/board" : "/room" });
-            } catch (x) { setErr((x as Error).message); }
+            setErr("");
+            join(name, role)
+              .then(() => nav({ to: role === "spectator" ? "/board" : "/room" }))
+              .catch((x) => setErr((x as Error).message));
           }}
         >
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">

@@ -92,7 +92,7 @@ function CallerPanel({ pin, onDone, run }: { pin: { x: number; y: number } | nul
         <input type="range" min={1} max={5} value={sev} onChange={(e) => setSev(+e.target.value)} className="w-full accent-primary" />
       </label>
       <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="What's happening?" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-      <button disabled={!pin} onClick={() => run(() => { reportIncident(type, sev, pin!.x, pin!.y, note); setNote(""); setSent("Report sent — help is on the way."); onDone(); })}
+      <button disabled={!pin} onClick={() => run(() => reportIncident(type, sev, pin!.x, pin!.y, note).then(() => { setNote(""); setSent("Report sent — help is on the way."); onDone(); }))}
         className="w-full rounded-md bg-primary py-2 font-semibold text-primary-foreground disabled:opacity-40">Send report</button>
       {sent && !pin && <p className="text-sm text-accent">{sent}</p>}
     </div>
