@@ -46,18 +46,18 @@ describe("Emoji Charades module", () => {
     const h = makeHarness();
     h.withReducerTx(host, (ctx) => {
       mod.join(ctx, { name: "Ada" });
-      expect(() => mod.startGame(ctx, {})).toThrow(/at least 2 players/);
+      expect(() => mod.start_game(ctx, {})).toThrow(/at least 2 players/);
     });
     h.withReducerTx(guest, (ctx) => mod.join(ctx, { name: "Bo" }));
     h.withReducerTx(guest, (ctx) => {
-      expect(() => mod.startGame(ctx, {})).toThrow(/Only the host/);
+      expect(() => mod.start_game(ctx, {})).toThrow(/Only the host/);
     });
   });
 
   it("plays a full round: clue, wrong guess, correct guess, scoring", () => {
     const h = makeHarness();
     joinTwo(h);
-    h.withReducerTx(host, (ctx) => mod.startGame(ctx, {}));
+    h.withReducerTx(host, (ctx) => mod.start_game(ctx, {}));
 
     // Find which auth is the cluer.
     const g0 = h.withReducerTx(host, (ctx) => ctx.db.game.id.find(1n)!);
@@ -68,24 +68,24 @@ describe("Emoji Charades module", () => {
 
     // Letters are rejected; emojis move the game to the guess phase.
     h.withReducerTx(cluerAuth, (ctx) => {
-      expect(() => mod.submitClue(ctx, { clue: "pizza time" })).toThrow(/Emojis only/);
-      mod.submitClue(ctx, { clue: "🍕🕒" });
+      expect(() => mod.submit_clue(ctx, { clue: "pizza time" })).toThrow(/Emojis only/);
+      mod.submit_clue(ctx, { clue: "🍕🕒" });
       expect(ctx.db.game.id.find(1n)!.phase).toBe("guess");
     });
 
     // The cluer can't guess; a wrong guess scores nothing and keeps the round going.
     h.withReducerTx(cluerAuth, (ctx) => {
-      expect(() => mod.submitGuess(ctx, { text: "anything" })).toThrow(/cluer can't guess/);
+      expect(() => mod.submit_guess(ctx, { text: "anything" })).toThrow(/cluer can't guess/);
     });
     h.withReducerTx(guesserAuth, (ctx) => {
-      mod.submitGuess(ctx, { text: "definitely wrong" });
+      mod.submit_guess(ctx, { text: "definitely wrong" });
       expect(ctx.db.game.id.find(1n)!.phase).toBe("guess");
     });
 
     // A correct guess (case/punctuation-insensitive) scores both players and reveals.
     h.withReducerTx(guesserAuth, (ctx) => {
       const phrase = ctx.db.game.id.find(1n)!.phrase;
-      mod.submitGuess(ctx, { text: phrase.toUpperCase() + "!" });
+      mod.submit_guess(ctx, { text: phrase.toUpperCase() + "!" });
       const g = ctx.db.game.id.find(1n)!;
       expect(g.phase).toBe("reveal");
       const guesser = ctx.db.player.identity.find(guesserAuth.identity)!;
@@ -98,10 +98,10 @@ describe("Emoji Charades module", () => {
   it("ticks through deadlines: reveal after timeout, then the next round", () => {
     const h = makeHarness();
     joinTwo(h);
-    h.withReducerTx(host, (ctx) => mod.startGame(ctx, {}));
+    h.withReducerTx(host, (ctx) => mod.start_game(ctx, {}));
     const g0 = h.withReducerTx(host, (ctx) => ctx.db.game.id.find(1n)!);
     const cluerAuth = g0.cluer!.isEqual(host.identity) ? host : guest;
-    h.withReducerTx(cluerAuth, (ctx) => mod.submitClue(ctx, { clue: "🚀🌕" }));
+    h.withReducerTx(cluerAuth, (ctx) => mod.submit_clue(ctx, { clue: "🚀🌕" }));
 
     // Nobody guesses before the deadline -> reveal with no winner.
     h.clock.advance({ __time_duration_micros__: 61_000_000n } as never);
@@ -126,15 +126,15 @@ describe("Emoji Charades module", () => {
     const h = makeHarness();
     joinTwo(h);
     h.withReducerTx(host, (ctx) => {
-      mod.startGame(ctx, {});
-      mod.resetGame(ctx, {});
+      mod.start_game(ctx, {});
+      mod.reset_game(ctx, {});
       const g = ctx.db.game.id.find(1n)!;
       expect(g.phase).toBe("lobby");
       expect([...ctx.db.guess.iter()]).toHaveLength(0);
       for (const p of ctx.db.player.iter()) expect(p.score).toBe(0);
     });
     h.withReducerTx(guest, (ctx) => {
-      expect(() => mod.resetGame(ctx, {})).toThrow(/Only the host/);
+      expect(() => mod.reset_game(ctx, {})).toThrow(/Only the host/);
     });
   });
 });
