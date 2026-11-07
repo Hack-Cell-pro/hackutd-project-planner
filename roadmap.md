@@ -3,6 +3,7 @@
 - [ ] Rewrite Spacetime module for Emoji Charades (rounds, clue/guess/reveal phases, speed scoring, host controls)
 - [ ] Regenerate client bindings, rewrite app screens (join, play, big screen)
 - [ ] Update engine stand-in + tests, verify end-to-end, have user republish module
+- [ ] Swap phrase deck for silly everyday/meme phrases (user request: search Google for meme/classic phrases)
 - [x] Plan for both tracks
 - [x] FirstWave UI: landing, room, board (local stand-in for the Spacetime backend)
 - [x] Spacetime module source for FirstWave (user publishes it with the Spacetime CLI; it needs their login)
