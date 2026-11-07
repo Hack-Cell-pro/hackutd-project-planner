@@ -51,10 +51,7 @@ describe("startGame", () => {
     joinAs("Bo");
     joinAs("Cy");
     // Back to the host's identity.
-    localStorage.removeItem("emoji-me");
-    join("Ada2"); // third distinct identity; host is still Ada
-    const s0 = read();
-    const host = s0.players.find((p) => p.isHost)!;
+    const host = read().players.find((p) => p.isHost)!;
     localStorage.setItem("emoji-me", host.id);
     startGame();
     const s = read();
