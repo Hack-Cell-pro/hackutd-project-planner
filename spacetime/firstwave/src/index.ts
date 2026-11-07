@@ -55,7 +55,7 @@ const Tick = table({ name: "tick_schedule", public: false }, {
   scheduledAt: t.scheduleAt(),
 });
 
-export const spacetimedb = schema({
+const spacetimedb = schema({
   player: Player,
   incident: Incident,
   unit: Unit,
