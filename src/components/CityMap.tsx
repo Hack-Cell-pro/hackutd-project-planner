@@ -6,8 +6,8 @@ const ICON: Record<string, string> = { fire: "F", medical: "+", flood: "W", powe
 export function CityMap({
   incidents, units, selectedId, onPick, onSelect,
 }: {
-  incidents: Incident[]; units: Unit[]; selectedId?: number | null;
-  onPick?: (x: number, y: number) => void; onSelect?: (id: number) => void;
+  incidents: Incident[]; units: Unit[]; selectedId?: number | null | undefined;
+  onPick?: ((x: number, y: number) => void) | undefined; onSelect?: ((id: number) => void) | undefined;
 }) {
   const active = incidents.filter((i) => i.status !== "resolved");
   return (

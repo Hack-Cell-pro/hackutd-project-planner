@@ -13,13 +13,13 @@ export type UnitStatus = "available" | "en_route" | "on_scene";
 export interface Player { id: string; name: string; role: Role; score: number; lastSeen: number }
 export interface Incident {
   id: number; type: IncidentType; severity: number; x: number; y: number; note: string;
-  status: IncidentStatus; createdAt: number; assignedAt?: number; resolvedAt?: number;
-  unitId?: number; reporter: string; lastEscalated: number;
+  status: IncidentStatus; createdAt: number; assignedAt?: number | undefined; resolvedAt?: number | undefined;
+  unitId?: number | undefined; reporter: string; lastEscalated: number;
 }
 export interface Unit {
   id: number; callsign: string; kind: IncidentType; x: number; y: number;
-  status: UnitStatus; ownerId?: string; targetId?: number; etaAt?: number;
-  fromX?: number; fromY?: number; departAt?: number;
+  status: UnitStatus; ownerId?: string | undefined; targetId?: number | undefined; etaAt?: number | undefined;
+  fromX?: number | undefined; fromY?: number | undefined; departAt?: number | undefined;
 }
 export interface LogEvent { id: number; ts: number; actor: string; kind: string; text: string }
 export interface State { players: Player[]; incidents: Incident[]; units: Unit[]; events: LogEvent[]; nextId: number }
@@ -176,7 +176,7 @@ export function triggerDisaster(n = 6) {
     for (let k = 0; k < n; k++) {
       const id = s.nextId++;
       s.incidents.push({
-        id, type: types[k % 4], severity: 2 + Math.floor(Math.random() * 4),
+        id, type: types[k % 4]!, severity: 2 + Math.floor(Math.random() * 4),
         x: Math.min(95, Math.max(5, cx + (Math.random() - 0.5) * 40)), y: 5 + Math.random() * 90,
         note: "Storm cell damage", status: "open", createdAt: now, reporter: "STORM", lastEscalated: now,
       });
