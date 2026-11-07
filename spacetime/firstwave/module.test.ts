@@ -8,6 +8,7 @@ import spacetimedb, {
 } from "./src/index";
 
 const auth = TestAuth.internal();
+const micros = (n: bigint) => ({ micros: n }) as any;
 
 function harness() {
   const test = createModuleTestHarness(spacetimedb, {
@@ -19,7 +20,11 @@ function harness() {
   const incidents = () => [...test.db.incident.iter()] as any[];
   const players = () => [...test.db.player.iter()] as any[];
   const ticks = () => [...test.db.tickSchedule.iter()] as any[];
-  return { test, tx, units, incidents, players, ticks };
+  const runTick = () => {
+    const arg = ticks()[0];
+    if (arg) tx((ctx) => { tick(ctx, { arg }); });
+  };
+  return { test, tx, units, incidents, players, ticks, runTick };
 }
 
 describe("firstwave module", () => {
@@ -30,8 +35,8 @@ describe("firstwave module", () => {
     expect(ticks().length).toBe(1);
   });
 
-  it("runs a call from report to resolve, scoring the dispatcher half", () => {
-    const { tx, units, incidents, players, ticks } = harness();
+  it("runs a call from report to resolve, scoring both roles", () => {
+    const { test, tx, units, incidents, players, runTick } = harness();
     tx((ctx) => { init(ctx); });
     tx((ctx) => { join(ctx, { name: "Sam", role: "dispatcher" }); });
     tx((ctx) => { join(ctx, { name: "Riley", role: "responder" }); });
@@ -47,16 +52,12 @@ describe("firstwave module", () => {
     expect(incidents()[0].status).toBe("en_route");
     expect(units().find((u) => u.id === unit.id).status).toBe("en_route");
 
-    // a second dispatcher cannot send the same unit to the same incident
+    // the same unit can't be sent twice
     expect(() => tx((ctx) => { assign_unit(ctx, { incidentId: inc.id, unitId: unit.id }); })).toThrow();
 
-    // travel: advance past the ETA and tick until the unit arrives
-    test_clock(harness_clock({ tx, ticks }));
-    for (let k = 0; k < 6; k++) {
-      const arg = ticks()[0];
-      if (!arg) break;
-      tx((ctx) => { tick(ctx, { arg }); });
-    }
+    // travel: advance past the ETA, then tick until the unit arrives
+    test.clock.advance(micros(30_000_000n));
+    for (let k = 0; k < 6; k++) runTick();
     expect(incidents()[0].status).toBe("on_scene");
 
     tx((ctx) => { claim_unit(ctx, { unitId: unit.id }); });
@@ -66,20 +67,21 @@ describe("firstwave module", () => {
     const riley = players().find((p) => p.name === "Riley");
     expect(sam.score).toBeGreaterThan(0);
     expect(riley.score).toBeGreaterThan(0);
+    expect(units().find((u) => u.id === unit.id).status).toBe("available");
   });
 
-  it("escalates an unattended incident after 60s and caps at severity 5", () => {
-    const { tx, incidents, ticks, test } = harness();
+  it("escalates an unattended incident after 60s", () => {
+    const { test, tx, incidents, runTick } = harness();
     tx((ctx) => { init(ctx); });
     tx((ctx) => { join(ctx, { name: "Sam", role: "dispatcher" }); });
     tx((ctx) => { report_incident(ctx, { kind: "medical", severity: 1, x: 50, y: 50, note: "CAD" }); });
     const before = incidents()[0].severity;
-    test.clock.advance({ micros: 61_000_000n } as any);
-    tx((ctx) => { tick(ctx, { arg: ticks()[0] }); });
+    test.clock.advance(micros(61_000_000n));
+    runTick();
     expect(incidents()[0].severity).toBe(before + 1);
   });
 
-  it("rejects bad reports, non-dispatcher assigns, and cancels free the unit", () => {
+  it("rejects bad reports and non-dispatcher sends; cancelling frees the unit", () => {
     const { tx, units, incidents } = harness();
     tx((ctx) => { init(ctx); });
     tx((ctx) => { join(ctx, { name: "Sam", role: "dispatcher" }); });
@@ -103,7 +105,3 @@ describe("firstwave module", () => {
     expect(incidents().length).toBe(4);
   });
 });
-
-// helper: the harness clock is on `test`, so pull it through the tuple
-function harness_clock(t: any) { return t; }
-function test_clock(t: any) { t.test.clock.advance({ micros: 30_000_000n } as any); }
