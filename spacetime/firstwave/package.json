@@ -1,0 +1,11 @@
+{
+  "name": "firstwave-module",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "spacetimedb": "^2.14.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}
