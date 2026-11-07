@@ -1,5 +1,8 @@
 # Roadmap
-- [ ] Pick a simpler, more fun game concept (user rejected dispatch sim and trivia as too complex/basic)
+- [x] Pick a simpler, more fun game concept → Emoji Charades (cluer describes a secret phrase with emojis only; room races to guess)
+- [ ] Rewrite Spacetime module for Emoji Charades (rounds, clue/guess/reveal phases, speed scoring, host controls)
+- [ ] Regenerate client bindings, rewrite app screens (join, play, big screen)
+- [ ] Update engine stand-in + tests, verify end-to-end, have user republish module
 - [x] Plan for both tracks
 - [x] FirstWave UI: landing, room, board (local stand-in for the Spacetime backend)
 - [x] Spacetime module source for FirstWave (user publishes it with the Spacetime CLI; it needs their login)
