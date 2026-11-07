@@ -1,43 +1,39 @@
-// FirstWave SpacetimeDB module (TypeScript, SDK 2.x).
-// Every dispatch rule runs here. Mirrors src/lib/engine.ts reducer-for-reducer.
+// QuickFire SpacetimeDB module (TypeScript, SDK 2.x) — live trivia for the whole room.
+// Every game rule runs here: the round clock, scoring, host controls. Mirrors src/lib/engine.ts.
 import { schema, table, t, SenderError, ScheduleAt } from "spacetimedb/server";
 
 const Player = table({ name: "player", public: true }, {
   identity: t.identity().primaryKey(),
   name: t.string(),
-  role: t.string(),
   score: t.u32(),
   online: t.bool(),
+  isHost: t.bool(),
 });
 
-const Incident = table({ name: "incident", public: true }, {
-  id: t.u64().primaryKey().autoInc(),
-  kind: t.string(),
-  severity: t.u8(),
-  x: t.f32(),
-  y: t.f32(),
-  note: t.string(),
-  status: t.string(),
-  createdAt: t.timestamp(),
-  lastEscalated: t.timestamp(),
-  unitId: t.option(t.u64()),
-  assignedBy: t.option(t.identity()),
-  reporter: t.string(),
+// One row (id 1): the shared game state every screen subscribes to.
+const Game = table({ name: "game", public: true }, {
+  id: t.u64().primaryKey(),
+  phase: t.string(), // lobby | question | reveal | final
+  questionIndex: t.u32(),
+  roundStartAt: t.u64(), // ms since epoch
+  roundEndsAt: t.u64(),
+  revealEndsAt: t.u64(),
 });
 
-const Unit = table({ name: "unit", public: true }, {
+const Question = table({ name: "question", public: true }, {
   id: t.u64().primaryKey().autoInc(),
-  callsign: t.string(),
-  kind: t.string(),
-  x: t.f32(),
-  y: t.f32(),
-  status: t.string(),
-  owner: t.option(t.identity()),
-  targetId: t.option(t.u64()),
-  fromX: t.f32(),
-  fromY: t.f32(),
-  departAt: t.u64(),
-  etaAt: t.u64(),
+  text: t.string(),
+  options: t.array(t.string()),
+  correct: t.u8(),
+});
+
+const Answer = table({ name: "answer", public: true }, {
+  id: t.u64().primaryKey().autoInc(),
+  player: t.identity(),
+  questionId: t.u64(),
+  choice: t.u8(),
+  answeredAt: t.u64(), // ms since epoch
+  points: t.u32(),
 });
 
 const EventLog = table({ name: "event_log", public: true }, {
@@ -57,14 +53,16 @@ const Tick = table({ name: "tick_schedule", public: false }, {
 
 const spacetimedb = schema({
   player: Player,
-  incident: Incident,
-  unit: Unit,
+  game: Game,
+  question: Question,
+  answer: Answer,
   eventLog: EventLog,
   tickSchedule: Tick,
 });
 
 const TICK_EVERY = 500_000n; // microseconds -> 2 ticks per second
-const ESCALATE_AFTER_MS = 60_000;
+const ROUND_MS = 15_000;
+const REVEAL_MS = 6_000;
 
 const nowMs = (ctx: any) => Number(ctx.timestamp.microsSinceUnixEpoch / 1000n);
 
@@ -77,24 +75,58 @@ const me = (ctx: any) => {
   return p;
 };
 
+const game = (ctx: any) => {
+  const g = ctx.db.game.id.find(1n);
+  if (!g) throw new SenderError("Game not initialized");
+  return g;
+};
+
 const queueTick = (ctx: any) =>
   ctx.db.tickSchedule.insert({ scheduledId: 0n, scheduledAt: ScheduleAt.interval(TICK_EVERY) });
 
-export const init = spacetimedb.init((ctx) => {
-  const seed = [
-    ["ENGINE 7", "fire", 20, 25],
-    ["LADDER 3", "fire", 75, 70],
-    ["MEDIC 12", "medical", 50, 50],
-    ["MEDIC 4", "medical", 85, 20],
-    ["SWIFT 1", "flood", 15, 80],
-    ["GRID 9", "power", 60, 15],
-  ] as const;
-  for (const [callsign, kind, x, y] of seed) {
-    ctx.db.unit.insert({
-      id: 0n, callsign, kind, x, y, status: "available", owner: undefined, targetId: undefined,
-      fromX: x, fromY: y, departAt: 0n, etaAt: 0n,
-    });
+const questionCount = (ctx: any) => {
+  let n = 0;
+  for (const _ of ctx.db.question.iter()) n++;
+  return n;
+};
+
+const currentQuestion = (ctx: any, g: any) => {
+  let i = 0;
+  for (const q of ctx.db.question.iter()) {
+    if (i === Number(g.questionIndex)) return q;
+    i++;
   }
+  return undefined;
+};
+
+// Speed scoring: 100 for a correct answer + up to 100 more for being fast
+// (1 bonus point lost per 150ms of thinking time).
+const pointsFor = (answeredAt: number, roundStartAt: number) =>
+  100 + Math.max(0, 100 - Math.floor((answeredAt - roundStartAt) / 150));
+
+const QUESTIONS: { text: string; options: string[]; correct: number }[] = [
+  { text: "What year did the first iPhone come out?", options: ["2005", "2007", "2009", "2010"], correct: 1 },
+  { text: "Which planet is closest to the Sun?", options: ["Venus", "Earth", "Mercury", "Mars"], correct: 2 },
+  { text: "How many legs does a spider have?", options: ["6", "8", "10", "12"], correct: 1 },
+  { text: "What does 'HTTP' stand for?", options: ["HyperText Transfer Protocol", "High Tech Transfer Process", "HyperText Transmission Program", "Host Transfer Text Protocol"], correct: 0 },
+  { text: "Which company created SpacetimeDB?", options: ["Google", "Clockwork Labs", "Meta", "Amazon"], correct: 1 },
+  { text: "What is the largest ocean on Earth?", options: ["Atlantic", "Indian", "Arctic", "Pacific"], correct: 3 },
+  { text: "How many bits are in a byte?", options: ["4", "8", "16", "32"], correct: 1 },
+  { text: "Which animal is known as the King of the Jungle?", options: ["Tiger", "Elephant", "Lion", "Gorilla"], correct: 2 },
+  { text: "What is 9 x 7?", options: ["56", "63", "72", "49"], correct: 1 },
+  { text: "Which language runs in a web browser?", options: ["Java", "C++", "JavaScript", "Python"], correct: 2 },
+  { text: "What color do you get mixing blue and yellow?", options: ["Purple", "Green", "Orange", "Brown"], correct: 1 },
+  { text: "How many continents are there?", options: ["5", "6", "7", "8"], correct: 2 },
+  { text: "What is the chemical symbol for gold?", options: ["Go", "Gd", "Au", "Ag"], correct: 2 },
+  { text: "Which of these is NOT a programming language?", options: ["Rust", "Cobra", "Python", "TypeScript"], correct: 1 },
+  { text: "How many seconds are in five minutes?", options: ["300", "360", "240", "500"], correct: 0 },
+];
+
+export const init = spacetimedb.init((ctx) => {
+  for (const q of QUESTIONS) {
+    ctx.db.question.insert({ id: 0n, text: q.text, options: q.options, correct: q.correct });
+  }
+  ctx.db.game.insert({ id: 1n, phase: "lobby", questionIndex: 0, roundStartAt: 0n, roundEndsAt: 0n, revealEndsAt: 0n });
   queueTick(ctx);
 });
 
@@ -108,151 +140,102 @@ export const onDisconnect = spacetimedb.clientDisconnected((ctx) => {
   if (p) ctx.db.player.identity.update({ ...p, online: false });
 });
 
-export const join = spacetimedb.reducer({ name: t.string(), role: t.string() }, (ctx, { name, role }) => {
-  const clean = name.trim().slice(0, 24);
+export const join = spacetimedb.reducer({ name: t.string() }, (ctx, { name }) => {
+  const clean = name.trim().slice(0, 16);
   if (!clean) throw new SenderError("Name required");
-  if (!["caller", "dispatcher", "responder", "spectator"].includes(role)) throw new SenderError("Bad role");
-  const p = ctx.db.player.identity.find(ctx.sender);
-  if (p) ctx.db.player.identity.update({ ...p, name: clean, role });
-  else ctx.db.player.insert({ identity: ctx.sender, name: clean, role, score: 0, online: true });
-  log(ctx, clean, "join", `${clean} joined as ${role}`);
+  const existing = ctx.db.player.identity.find(ctx.sender);
+  if (existing) {
+    ctx.db.player.identity.update({ ...existing, name: clean, online: true });
+    return;
+  }
+  // The first player in the room becomes the host.
+  let any = false;
+  for (const _ of ctx.db.player.iter()) { any = true; break; }
+  ctx.db.player.insert({ identity: ctx.sender, name: clean, score: 0, online: true, isHost: !any });
+  log(ctx, clean, "join", `${clean} joined the game${any ? "" : " as host"}`);
 });
 
-export const report_incident = spacetimedb.reducer(
-  { kind: t.string(), severity: t.u8(), x: t.f32(), y: t.f32(), note: t.string() },
-  (ctx, a) => {
-    const p = me(ctx);
-    if (!["fire", "medical", "flood", "power"].includes(a.kind)) throw new SenderError("Bad incident type");
-    if (a.severity < 1 || a.severity > 5) throw new SenderError("Severity must be 1-5");
-    if (a.x < 0 || a.x > 100 || a.y < 0 || a.y > 100) throw new SenderError("Location is off the map");
-    const row = ctx.db.incident.insert({
-      id: 0n, kind: a.kind, severity: a.severity, x: a.x, y: a.y, note: a.note.slice(0, 140),
-      status: "open", createdAt: ctx.timestamp, lastEscalated: ctx.timestamp,
-      unitId: undefined, assignedBy: undefined, reporter: p.name,
-    });
-    log(ctx, p.name, "report", `#${row.id} ${a.kind.toUpperCase()} sev ${a.severity} reported by ${p.name}`);
-  },
-);
-
-export const assign_unit = spacetimedb.reducer({ incidentId: t.u64(), unitId: t.u64() }, (ctx, { incidentId, unitId }) => {
+export const start_game = spacetimedb.reducer({}, (ctx) => {
   const p = me(ctx);
-  if (p.role !== "dispatcher") throw new SenderError("Only dispatchers can assign units");
-  const inc = ctx.db.incident.id.find(incidentId);
-  const u = ctx.db.unit.id.find(unitId);
-  if (!inc || !u) throw new SenderError("Not found");
-  if (inc.status !== "open") throw new SenderError("Incident already handled");
-  if (u.status !== "available") throw new SenderError("Unit is busy");
+  if (!p.isHost) throw new SenderError("Only the host can start the game");
+  const g = game(ctx);
+  if (g.phase !== "lobby" && g.phase !== "final") throw new SenderError("Game already running");
   const now = nowMs(ctx);
-  const eta = now + Math.max(5000, Math.round(Math.hypot(u.x - inc.x, u.y - inc.y) * 250));
-  ctx.db.incident.id.update({ ...inc, status: "en_route", unitId: u.id, assignedBy: ctx.sender });
-  ctx.db.unit.id.update({
-    ...u, status: "en_route", targetId: inc.id, fromX: u.x, fromY: u.y,
-    departAt: BigInt(now), etaAt: BigInt(eta),
+  ctx.db.game.id.update({
+    ...g, phase: "question", questionIndex: 0,
+    roundStartAt: BigInt(now), roundEndsAt: BigInt(now + ROUND_MS), revealEndsAt: 0n,
   });
-  ctx.db.player.identity.update({ ...p, score: p.score + 5 });
-  log(ctx, p.name, "assign", `${u.callsign} dispatched to #${inc.id} by ${p.name}`);
+  log(ctx, "GAME", "start", `${p.name} started the game — question 1 is live`);
 });
 
-export const claim_unit = spacetimedb.reducer({ unitId: t.u64() }, (ctx, { unitId }) => {
+export const submit_answer = spacetimedb.reducer({ choice: t.u8() }, (ctx, { choice }) => {
   const p = me(ctx);
-  if (p.role !== "responder") throw new SenderError("Only responders can crew a unit");
-  for (const u of ctx.db.unit.iter()) {
-    if (u.owner && u.owner.isEqual(ctx.sender)) ctx.db.unit.id.update({ ...u, owner: undefined });
+  const g = game(ctx);
+  if (g.phase !== "question") throw new SenderError("No question is live");
+  const now = nowMs(ctx);
+  if (now > Number(g.roundEndsAt)) throw new SenderError("Time is up");
+  const q = currentQuestion(ctx, g);
+  if (!q) throw new SenderError("No question found");
+  if (choice >= q.options.length) throw new SenderError("Bad choice");
+  for (const a of ctx.db.answer.iter()) {
+    if (a.questionId === q.id && a.player.isEqual(ctx.sender)) throw new SenderError("Already answered");
   }
-  const u = ctx.db.unit.id.find(unitId);
-  if (!u) throw new SenderError("Not found");
-  if (u.owner && !u.owner.isEqual(ctx.sender)) throw new SenderError("Unit already crewed");
-  ctx.db.unit.id.update({ ...u, owner: ctx.sender });
+  ctx.db.answer.insert({ id: 0n, player: ctx.sender, questionId: q.id, choice, answeredAt: BigInt(now), points: 0 });
 });
 
-export const resolve_incident = spacetimedb.reducer({ incidentId: t.u64() }, (ctx, { incidentId }) => {
+export const reset_game = spacetimedb.reducer({}, (ctx) => {
   const p = me(ctx);
-  const inc = ctx.db.incident.id.find(incidentId);
-  if (!inc || inc.status !== "on_scene") throw new SenderError("Unit must be on scene first");
-  const u = inc.unitId != null ? ctx.db.unit.id.find(inc.unitId) : undefined;
-  if (p.role === "responder" && !(u && u.owner && u.owner.isEqual(ctx.sender))) {
-    throw new SenderError("Not your unit");
-  }
-  if (p.role !== "responder" && p.role !== "dispatcher") throw new SenderError("Not allowed");
-  const mins = (nowMs(ctx) - Number(inc.createdAt.microsSinceUnixEpoch / 1000n)) / 60000;
-  const pts = Math.max(5, Math.round(inc.severity * 20 - mins * 5));
-  ctx.db.incident.id.update({ ...inc, status: "resolved" });
-  if (u) ctx.db.unit.id.update({ ...u, status: "available", targetId: undefined });
-  ctx.db.player.identity.update({ ...p, score: p.score + pts });
-  // The dispatcher who sent the unit gets half credit.
-  if (inc.assignedBy && !inc.assignedBy.isEqual(ctx.sender)) {
-    const d = ctx.db.player.identity.find(inc.assignedBy);
-    if (d) ctx.db.player.identity.update({ ...d, score: d.score + Math.round(pts / 2) });
-  }
-  log(ctx, p.name, "resolve", `#${inc.id} resolved in ${mins.toFixed(1)} min (+${pts})`);
+  if (!p.isHost) throw new SenderError("Only the host can reset");
+  const g = game(ctx);
+  ctx.db.game.id.update({ ...g, phase: "lobby", questionIndex: 0, roundStartAt: 0n, roundEndsAt: 0n, revealEndsAt: 0n });
+  for (const a of ctx.db.answer.iter()) ctx.db.answer.id.delete(a.id);
+  for (const pl of ctx.db.player.iter()) ctx.db.player.identity.update({ ...pl, score: 0 });
+  log(ctx, "GAME", "reset", `${p.name} reset the room — back to the lobby`);
 });
 
-export const cancel_incident = spacetimedb.reducer({ incidentId: t.u64() }, (ctx, { incidentId }) => {
-  const p = me(ctx);
-  if (p.role !== "dispatcher") throw new SenderError("Only dispatchers can cancel incidents");
-  const inc = ctx.db.incident.id.find(incidentId);
-  if (!inc) throw new SenderError("Not found");
-  if (inc.status === "resolved") throw new SenderError("Already closed");
-  ctx.db.incident.id.update({ ...inc, status: "resolved" });
-  if (inc.unitId != null) {
-    const u = ctx.db.unit.id.find(inc.unitId);
-    if (u) ctx.db.unit.id.update({ ...u, status: "available", targetId: undefined });
-  }
-  log(ctx, p.name, "cancel", `#${inc.id} cancelled by ${p.name} (false alarm)`);
-});
-
-export const trigger_disaster = spacetimedb.reducer({ n: t.u8() }, (ctx, { n }) => {
-  const p = me(ctx);
-  const kinds = ["fire", "medical", "flood", "power"];
-  const cx = 20 + ctx.random() * 60;
-  const count = Math.min(n, 12);
-  for (let k = 0; k < count; k++) {
-    ctx.db.incident.insert({
-      id: 0n,
-      kind: kinds[k % 4],
-      severity: 2 + Math.floor(ctx.random() * 4),
-      x: Math.min(95, Math.max(5, cx + (ctx.random() - 0.5) * 40)),
-      y: 5 + ctx.random() * 90,
-      note: "Storm cell damage",
-      status: "open",
-      createdAt: ctx.timestamp,
-      lastEscalated: ctx.timestamp,
-      unitId: undefined,
-      assignedBy: undefined,
-      reporter: "STORM",
-    });
-  }
-  log(ctx, p.name, "disaster", `Storm cell triggered by ${p.name}: ${count} new incidents`);
-});
-
-// The heartbeat: escalation + unit travel. Queues the next tick before returning.
+// The heartbeat: ends rounds, scores answers, advances the game. Queues the next tick first.
 export const tick = spacetimedb.reducer(
   { onSchedule: Tick },
   { arg: Tick.rowType },
   (ctx) => {
     queueTick(ctx);
+    const g = ctx.db.game.id.find(1n);
+    if (!g) return;
     const now = nowMs(ctx);
-    for (const i of ctx.db.incident.iter()) {
-      const last = Number(i.lastEscalated.microsSinceUnixEpoch / 1000n);
-      if (i.status === "open" && i.severity < 5 && now - last >= ESCALATE_AFTER_MS) {
-        ctx.db.incident.id.update({ ...i, severity: i.severity + 1, lastEscalated: ctx.timestamp });
-        log(ctx, "SYSTEM", "escalate", `#${i.id} escalated to sev ${i.severity + 1}: no response`);
+
+    if (g.phase === "question" && now > Number(g.roundEndsAt)) {
+      // Time's up: score every answer to this question.
+      const q = currentQuestion(ctx, g);
+      let correctCount = 0;
+      if (q) {
+        for (const a of ctx.db.answer.iter()) {
+          if (a.questionId !== q.id) continue;
+          const pts = a.choice === q.correct ? pointsFor(Number(a.answeredAt), Number(g.roundStartAt)) : 0;
+          ctx.db.answer.id.update({ ...a, points: pts });
+          if (pts > 0) {
+            correctCount++;
+            const pl = ctx.db.player.identity.find(a.player);
+            if (pl) ctx.db.player.identity.update({ ...pl, score: pl.score + pts });
+          }
+        }
       }
+      ctx.db.game.id.update({ ...g, phase: "reveal", revealEndsAt: BigInt(now + REVEAL_MS) });
+      log(ctx, "GAME", "reveal", `Time! ${correctCount} correct answer${correctCount === 1 ? "" : "s"}`);
+      return;
     }
-    for (const u of ctx.db.unit.iter()) {
-      if (u.status !== "en_route" || u.targetId == null) continue;
-      const inc = ctx.db.incident.id.find(u.targetId);
-      if (!inc) continue;
-      const span = Number(u.etaAt - u.departAt) || 1;
-      const tt = Math.min(1, (now - Number(u.departAt)) / span);
-      const x = u.fromX + (inc.x - u.fromX) * tt;
-      const y = u.fromY + (inc.y - u.fromY) * tt;
-      if (tt >= 1) {
-        ctx.db.unit.id.update({ ...u, x, y, status: "on_scene" });
-        ctx.db.incident.id.update({ ...inc, status: "on_scene" });
-        log(ctx, "SYSTEM", "arrive", `${u.callsign} on scene at #${inc.id}`);
+
+    if (g.phase === "reveal" && now > Number(g.revealEndsAt)) {
+      const total = questionCount(ctx);
+      const next = Number(g.questionIndex) + 1;
+      if (next >= total) {
+        ctx.db.game.id.update({ ...g, phase: "final" });
+        log(ctx, "GAME", "final", "That's the game! Check the leaderboard.");
       } else {
-        ctx.db.unit.id.update({ ...u, x, y });
+        ctx.db.game.id.update({
+          ...g, phase: "question", questionIndex: next,
+          roundStartAt: BigInt(now), roundEndsAt: BigInt(now + ROUND_MS), revealEndsAt: 0n,
+        });
+        log(ctx, "GAME", "question", `Question ${next + 1} of ${total} is live`);
       }
     }
   },

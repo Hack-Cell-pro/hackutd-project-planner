@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Pick a simpler, more fun game concept (user rejected dispatch sim and trivia as too complex/basic)
 - [x] Plan for both tracks
 - [x] FirstWave UI: landing, room, board (local stand-in for the Spacetime backend)
 - [x] Spacetime module source for FirstWave (user publishes it with the Spacetime CLI; it needs their login)
