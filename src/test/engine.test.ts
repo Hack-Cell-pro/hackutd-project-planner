@@ -93,14 +93,15 @@ describe("dispatch rules", () => {
       const unit = state().units.find((u) => u.id === 1)!;
       vi.advanceTimersByTime(unit.etaAt! - unit.departAt! + 600);
       tick();
+      localStorage.removeItem("firstwave-me"); // second browser = second identity
       join("Sam", "responder");
       claimUnit(1);
       resolveIncident(inc.id);
       const s = state();
       const dispatcher = s.players.find((p) => p.name === "Riley")!;
       const responder = s.players.find((p) => p.name === "Sam")!;
-      // Severity 4, fast resolve: 80 pts to the responder, 40 to the dispatcher (+5 for assigning).
-      expect(responder.score).toBe(80);
+      // Severity 4, ~10s to resolve: 79 pts to the responder, 40 half-credit + 5 assign bonus to the dispatcher.
+      expect(responder.score).toBe(79);
       expect(dispatcher.score).toBe(45);
       expect(s.units.find((u) => u.id === 1)!.status).toBe("available");
     } finally {
