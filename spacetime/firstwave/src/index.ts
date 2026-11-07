@@ -10,7 +10,7 @@ const Incident = table({ name: "incident", public: true }, {
   id: t.u64().primaryKey().autoInc(),
   kind: t.string(), severity: t.u8(), x: t.f32(), y: t.f32(), note: t.string(),
   status: t.string(), createdAt: t.timestamp(), lastEscalated: t.timestamp(),
-  unitId: t.option(t.u64()), reporter: t.string(),
+  unitId: t.option(t.u64()), assignedBy: t.option(t.identity()), reporter: t.string(),
 });
 const Unit = table({ name: "unit", public: true }, {
   id: t.u64().primaryKey().autoInc(),
@@ -64,8 +64,9 @@ spacetimedb.reducer("report_incident",
   (ctx, a) => {
     const p = me(ctx);
     if (a.severity < 1 || a.severity > 5) throw new SenderError("Severity must be 1-5");
+    if (a.x < 0 || a.x > 100 || a.y < 0 || a.y > 100) throw new SenderError("Location is off the map");
     const row = ctx.db.incident.insert({ id: 0n, ...a, note: a.note.slice(0, 140), status: "open",
-      createdAt: ctx.timestamp, lastEscalated: ctx.timestamp, unitId: undefined, reporter: p.name });
+      createdAt: ctx.timestamp, lastEscalated: ctx.timestamp, unitId: undefined, assignedBy: undefined, reporter: p.name });
     log(ctx, p.name, "report", `#${row.id} ${a.kind.toUpperCase()} sev ${a.severity} reported by ${p.name}`);
   });
 
@@ -78,7 +79,7 @@ spacetimedb.reducer("assign_unit", { incidentId: t.u64(), unitId: t.u64() }, (ct
   if (u.status !== "available") throw new SenderError("Unit is busy");
   const now = nowMs(ctx);
   const eta = now + Math.max(5000, Math.round(Math.hypot(u.x - inc.x, u.y - inc.y) * 250));
-  ctx.db.incident.id.update({ ...inc, status: "en_route", unitId: u.id });
+  ctx.db.incident.id.update({ ...inc, status: "en_route", unitId: u.id, assignedBy: ctx.sender });
   ctx.db.unit.id.update({ ...u, status: "en_route", targetId: inc.id, fromX: u.x, fromY: u.y, departAt: BigInt(now), etaAt: BigInt(eta) });
   ctx.db.player.identity.update({ ...p, score: p.score + 5 });
   log(ctx, p.name, "assign", `${u.callsign} dispatched to #${inc.id} by ${p.name}`);
@@ -106,7 +107,26 @@ spacetimedb.reducer("resolve_incident", { incidentId: t.u64() }, (ctx, { inciden
   ctx.db.incident.id.update({ ...inc, status: "resolved" });
   if (u) ctx.db.unit.id.update({ ...u, status: "available", targetId: undefined });
   ctx.db.player.identity.update({ ...p, score: p.score + pts });
+  // The dispatcher who sent the unit gets half credit.
+  if (inc.assignedBy && !inc.assignedBy.isEqual(ctx.sender)) {
+    const d = ctx.db.player.identity.find(inc.assignedBy);
+    if (d) ctx.db.player.identity.update({ ...d, score: d.score + Math.round(pts / 2) });
+  }
   log(ctx, p.name, "resolve", `#${inc.id} resolved in ${mins.toFixed(1)} min (+${pts})`);
+});
+
+spacetimedb.reducer("cancel_incident", { incidentId: t.u64() }, (ctx, { incidentId }) => {
+  const p = me(ctx);
+  if (p.role !== "dispatcher") throw new SenderError("Only dispatchers can cancel incidents");
+  const inc = ctx.db.incident.id.find(incidentId);
+  if (!inc) throw new SenderError("Not found");
+  if (inc.status === "resolved") throw new SenderError("Already closed");
+  ctx.db.incident.id.update({ ...inc, status: "resolved" });
+  if (inc.unitId != null) {
+    const u = ctx.db.unit.id.find(inc.unitId);
+    if (u) ctx.db.unit.id.update({ ...u, status: "available", targetId: undefined });
+  }
+  log(ctx, p.name, "cancel", `#${inc.id} cancelled by ${p.name} (false alarm)`);
 });
 
 spacetimedb.reducer("trigger_disaster", { n: t.u8() }, (ctx, { n }) => {
@@ -117,7 +137,7 @@ spacetimedb.reducer("trigger_disaster", { n: t.u8() }, (ctx, { n }) => {
     ctx.db.incident.insert({ id: 0n, kind: kinds[k % 4], severity: 2 + Math.floor(ctx.random() * 4),
       x: Math.min(95, Math.max(5, cx + (ctx.random() - 0.5) * 40)), y: 5 + ctx.random() * 90,
       note: "Storm cell damage", status: "open", createdAt: ctx.timestamp, lastEscalated: ctx.timestamp,
-      unitId: undefined, reporter: "STORM" });
+      unitId: undefined, assignedBy: undefined, reporter: "STORM" });
   log(ctx, p.name, "disaster", `Storm cell triggered by ${p.name}: ${n} new incidents`);
 });
 

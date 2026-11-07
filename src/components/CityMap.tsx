@@ -4,9 +4,10 @@ const SEV_CLASS = ["", "fill-accent", "fill-accent", "fill-warning", "fill-prima
 const ICON: Record<string, string> = { fire: "F", medical: "+", flood: "W", power: "⚡" };
 
 export function CityMap({
-  incidents, units, selectedId, onPick, onSelect,
+  incidents, units, selectedId, pin, myUnitId, onPick, onSelect,
 }: {
   incidents: Incident[]; units: Unit[]; selectedId?: number | null | undefined;
+  pin?: { x: number; y: number } | null | undefined; myUnitId?: number | undefined;
   onPick?: ((x: number, y: number) => void) | undefined; onSelect?: ((id: number) => void) | undefined;
 }) {
   const active = incidents.filter((i) => i.status !== "resolved");
@@ -35,16 +36,25 @@ export function CityMap({
       {active.map((i) => (
         <g key={i.id} onClick={(e) => { if (onSelect) { e.stopPropagation(); onSelect(i.id); } }} className="cursor-pointer">
           {i.status === "open" && <circle cx={i.x} cy={i.y} r={2} className={`pulse-ring ${SEV_CLASS[i.severity]}`} />}
+          {selectedId === i.id && <circle cx={i.x} cy={i.y} r={3.4} className="fill-none stroke-foreground/70" strokeWidth={0.3} strokeDasharray="0.8 0.8" />}
           <circle cx={i.x} cy={i.y} r={selectedId === i.id ? 2.6 : 2} className={`${SEV_CLASS[i.severity]} stroke-background`} strokeWidth={0.5} />
           <text x={i.x} y={i.y + 0.9} textAnchor="middle" fontSize={2.2} className="fill-background font-bold">{ICON[i.type]}</text>
         </g>
       ))}
       {units.map((u) => (
         <g key={u.id}>
+          {u.id === myUnitId && <rect x={u.x - 2.4} y={u.y - 2.4} width={4.8} height={4.8} rx={1} className="fill-none stroke-accent" strokeWidth={0.35} strokeDasharray="1 0.8" />}
           <rect x={u.x - 1.6} y={u.y - 1.6} width={3.2} height={3.2} rx={0.6} className={u.status === "available" ? "fill-accent" : "fill-accent/50 stroke-accent"} strokeWidth={0.3} />
           <text x={u.x} y={u.y - 2.4} textAnchor="middle" fontSize={1.8} className="fill-foreground font-mono">{u.callsign}</text>
         </g>
       ))}
+      {pin && (
+        <g className="pointer-events-none">
+          <circle cx={pin.x} cy={pin.y} r={1.2} className="fill-primary" />
+          <circle cx={pin.x} cy={pin.y} r={2.4} className="pulse-ring fill-primary" />
+          <text x={pin.x} y={pin.y - 3} textAnchor="middle" fontSize={2} className="fill-primary font-mono">NEW REPORT</text>
+        </g>
+      )}
     </svg>
   );
 }
