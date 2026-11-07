@@ -28,3 +28,7 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Project rules
+- `src/lib/engine.ts` is a browser stand-in for the Spacetime module in `spacetime/firstwave`; keep reducer names and rules identical in both so the swap stays mechanical.
+- `bot/` and `spacetime/` are standalone code run outside the web app (Node / Spacetime CLI); keep them out of app imports.
