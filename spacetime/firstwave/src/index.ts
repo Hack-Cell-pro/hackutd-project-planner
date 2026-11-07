@@ -105,11 +105,16 @@ const matches = (guess: string, phrase: string) => {
 const isEmojiOnly = (s: string) => s.length > 0 && s.length <= 24 && !/[a-zA-Z0-9]/.test(s);
 
 const PHRASES = [
-  "Harry Potter", "Pizza at 3am", "Monday morning", "Rocket launch", "Zombie apocalypse",
-  "Coffee addict", "Beach vacation", "Video game marathon", "Exam week", "Birthday party",
-  "Robot uprising", "Pizza delivery", "Snow day", "Road trip", "Haunted house",
-  "Time travel", "Superhero landing", "Cooking disaster", "Dance party", "Rainy day",
-  "Camping trip", "Space cowboy", "Cat video", "Job interview",
+  // Silly everyday situations
+  "Pizza at 3am", "Monday morning", "Talking while muted", "Fighting a fitted sheet",
+  "Searching for Wi-Fi", "Stepping on a LEGO", "Waiting for the microwave", "Awkward small talk",
+  "Running for the bus", "Untangling headphones", "Bad haircut", "Group project",
+  "Job interview", "Dance party", "Road trip", "Coffee addict",
+  // Meme classics
+  "This is fine", "Distracted boyfriend", "Woman yelling at a cat", "Vibe check",
+  "Doom scrolling", "Main character energy", "Touch grass", "Skill issue",
+  "Side quest", "Girl dinner", "Rizz", "Delulu",
+  "No cap", "Understood the assignment", "NPC energy", "Brain rot",
 ];
 
 export const init = spacetimedb.init((ctx) => {
