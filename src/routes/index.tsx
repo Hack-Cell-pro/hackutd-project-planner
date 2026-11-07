@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { join, type Role } from "@/lib/engine";
+import { join, type Role } from "@/lib/live";
 
 export const Route = createFileRoute("/")({
   head: () => ({

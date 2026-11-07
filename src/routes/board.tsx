@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { CityMap } from "@/components/CityMap";
 import { Feed, Leaderboard, Queue, Stats } from "@/components/Panels";
 import { AlertBanner, useEventAlerts } from "@/lib/alerts";
-import { resetRoom, useLeaderTick, useNow, useRoom } from "@/lib/engine";
+import { resetRoom, useLeaderTick, useNow, useRoom } from "@/lib/live";
 
 export const Route = createFileRoute("/board")({
   head: () => ({

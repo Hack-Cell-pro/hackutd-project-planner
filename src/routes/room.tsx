@@ -6,7 +6,7 @@ import { AlertBanner, useEventAlerts } from "@/lib/alerts";
 import {
   assignUnit, cancelIncident, claimUnit, distance, getMyId, reportIncident, resolveIncident,
   triggerDisaster, useLeaderTick, useNow, useRoom, type IncidentType, type State,
-} from "@/lib/engine";
+} from "@/lib/live";
 
 export const Route = createFileRoute("/room")({
   head: () => ({
@@ -37,7 +37,7 @@ function Room() {
     </main>
   );
 
-  const run = (f: () => void) => { try { f(); setErr(""); } catch (x) { setErr((x as Error).message); } };
+  const run = (f: () => unknown) => { try { Promise.resolve(f()).then(() => setErr(""), (x) => setErr((x as Error).message)); } catch (x) { setErr((x as Error).message); } };
   const online = state.players.filter((p) => now - p.lastSeen < 15_000).length;
   const myUnit = state.units.find((u) => u.ownerId === meP.id);
 
