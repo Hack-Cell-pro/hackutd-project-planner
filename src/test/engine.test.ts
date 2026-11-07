@@ -149,8 +149,8 @@ describe("matches", () => {
   it("ignores case, punctuation and trailing plurals", () => {
     expect(matches("harry potter!", "Harry Potter")).toBe(true);
     expect(matches("Zombie Apocalypse", "zombie apocalypse")).toBe(true);
-    expect(matches("cats", "cat")).toBe(false); // "cat" is too short to de-plural
-    expect(matches("zombies", "zombie")).toBe(false);
+    expect(matches("cats", "cat")).toBe(true); // trailing plurals forgiven
+    expect(matches("headphones", "untangling headphones")).toBe(false);
     expect(matches("pizza", "pizza delivery")).toBe(false);
   });
 });
