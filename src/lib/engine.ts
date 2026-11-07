@@ -14,7 +14,7 @@ export interface Player { id: string; name: string; role: Role; score: number; l
 export interface Incident {
   id: number; type: IncidentType; severity: number; x: number; y: number; note: string;
   status: IncidentStatus; createdAt: number; assignedAt?: number | undefined; resolvedAt?: number | undefined;
-  unitId?: number | undefined; reporter: string; lastEscalated: number;
+  unitId?: number | undefined; assignedBy?: string | undefined; reporter: string; lastEscalated: number;
 }
 export interface Unit {
   id: number; callsign: string; kind: IncidentType; x: number; y: number;
@@ -25,7 +25,7 @@ export interface LogEvent { id: number; ts: number; actor: string; kind: string;
 export interface State { players: Player[]; incidents: Incident[]; units: Unit[]; events: LogEvent[]; nextId: number }
 
 const KEY = "firstwave-state-v1";
-const ESCALATE_AFTER_MS = 60_000;
+export const ESCALATE_AFTER_MS = 60_000;
 
 export const UNIT_SEED: Unit[] = [
   { id: 1, callsign: "ENGINE 7", kind: "fire", x: 20, y: 25, status: "available" },
@@ -108,6 +108,7 @@ function me(s: State): Player {
 
 export function reportIncident(type: IncidentType, severity: number, x: number, y: number, note: string) {
   if (severity < 1 || severity > 5) fail("Severity must be 1–5");
+  if (x < 0 || x > 100 || y < 0 || y > 100) fail("Location is off the map");
   tx((s) => {
     const p = me(s);
     const now = Date.now();
@@ -126,7 +127,7 @@ export function assignUnit(incidentId: number, unitId: number) {
     if (inc.status !== "open") fail("Incident already handled");
     if (unit.status !== "available") fail("Unit is busy");
     const now = Date.now();
-    inc.status = "en_route"; inc.unitId = unit.id; inc.assignedAt = now;
+    inc.status = "en_route"; inc.unitId = unit.id; inc.assignedAt = now; inc.assignedBy = p.id;
     Object.assign(unit, {
       status: "en_route", targetId: inc.id, fromX: unit.x, fromY: unit.y, departAt: now,
       etaAt: now + travelMs(distance(unit.x, unit.y, inc.x, inc.y)),
@@ -161,9 +162,23 @@ export function resolveIncident(incidentId: number) {
     const mins = (inc.resolvedAt - inc.createdAt) / 60_000;
     const pts = Math.max(5, Math.round(inc.severity * 20 - mins * 5));
     p.score += pts;
-    const dispatcher = s.players.find((x) => x.role === "dispatcher" && x.id !== p.id);
+    // The dispatcher who sent the unit gets half credit.
+    const dispatcher = s.players.find((x) => x.id === inc.assignedBy && x.id !== p.id);
     if (dispatcher) dispatcher.score += Math.round(pts / 2);
     log(s, p.name, "resolve", `#${inc.id} resolved in ${mins.toFixed(1)} min (+${pts})`);
+  });
+}
+
+export function cancelIncident(incidentId: number) {
+  tx((s) => {
+    const p = me(s);
+    if (p.role !== "dispatcher") fail("Only dispatchers can cancel incidents");
+    const inc = s.incidents.find((i) => i.id === incidentId) ?? fail("No such incident");
+    if (inc.status === "resolved") fail("Already closed");
+    const unit = s.units.find((u) => u.id === inc.unitId);
+    inc.status = "resolved"; inc.resolvedAt = Date.now();
+    if (unit) Object.assign(unit, { status: "available", targetId: undefined, etaAt: undefined });
+    log(s, p.name, "cancel", `#${inc.id} cancelled by ${p.name} (false alarm)`);
   });
 }
 
