@@ -1,90 +1,61 @@
-import { priority, type State } from "@/lib/engine";
+// Shared display pieces for the play screen and the big screen.
+import type { LogEvent, Player } from "@/lib/live";
 
-export function Stats({ state, now }: { state: State; now: number }) {
-  const open = state.incidents.filter((i) => i.status !== "resolved");
-  const done = state.incidents.filter((i) => i.resolvedAt);
-  const avg = done.length ? done.reduce((a, i) => a + (i.resolvedAt! - i.createdAt), 0) / done.length / 1000 : 0;
-  const busy = state.units.filter((u) => u.status !== "available").length;
-  const crit = open.filter((i) => i.severity >= 4).length;
-  const items = [
-    ["OPEN", open.length, ""], ["CRITICAL", crit, "text-destructive"],
-    ["AVG RESPONSE", done.length ? `${avg.toFixed(0)}s` : "—", ""], ["UNITS BUSY", `${busy}/${state.units.length}`, "text-accent"],
-  ] as const;
-  void now;
+const MEDALS = ["🥇", "🥈", "🥉"];
+
+export function Leaderboard({ players, big = false }: { players: Player[]; big?: boolean }) {
+  const sorted = [...players].sort((a, b) => b.score - a.score);
   return (
-    <div className="grid grid-cols-4 gap-2">
-      {items.map(([l, v, c]) => (
-        <div key={l} className="rounded-md border border-border bg-card p-3">
-          <div className="font-mono text-[10px] tracking-widest text-muted-foreground">{l}</div>
-          <div className={`font-mono text-2xl font-bold ${c}`}>{v}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-const KIND_CLASS: Record<string, string> = {
-  escalate: "text-destructive", disaster: "text-destructive", cancel: "text-warning",
-  resolve: "text-accent", arrive: "text-accent", assign: "text-primary",
-};
-
-export function Feed({ state, limit = 12 }: { state: State; limit?: number }) {
-  return (
-    <ul className="space-y-1 font-mono text-xs">
-      {state.events.slice(-limit).reverse().map((e) => (
-        <li key={e.id} className="flex gap-2">
-          <span className="shrink-0 text-muted-foreground">{new Date(e.ts).toLocaleTimeString([], { hour12: false })}</span>
-          <span className={KIND_CLASS[e.kind] ?? ""}>{e.text}</span>
+    <ol className="space-y-1">
+      {sorted.map((p, i) => (
+        <li key={p.id}
+          className={`flex items-center justify-between rounded-md border px-3 py-2 ${i === 0 ? "border-primary bg-secondary" : "border-border"}`}>
+          <span className={big ? "text-lg" : "text-sm"}>
+            {MEDALS[i] ?? `${i + 1}.`} <span className="font-semibold">{p.name}</span>
+            {p.isHost && <span className="ml-1 font-mono text-xs text-muted-foreground">HOST</span>}
+          </span>
+          <span className={`font-mono ${big ? "text-lg" : "text-sm"} text-primary`}>{p.score}</span>
         </li>
       ))}
-      {state.events.length === 0 && <li className="text-muted-foreground">No activity yet.</li>}
-    </ul>
-  );
-}
-
-export function Leaderboard({ state }: { state: State }) {
-  const ps = [...state.players].filter((p) => p.role !== "spectator" && p.role !== "caller").sort((a, b) => b.score - a.score).slice(0, 6);
-  const medal = ["text-warning", "text-foreground", "text-primary"];
-  return (
-    <ol className="space-y-1 text-sm">
-      {ps.map((p, i) => (
-        <li key={p.id} className="flex justify-between">
-          <span><span className={`font-mono ${medal[i] ?? "text-muted-foreground"}`}>{i + 1}.</span> {p.name} <span className="text-xs text-muted-foreground">{p.role}</span></span>
-          <span className="font-mono text-primary">{p.score}</span>
-        </li>
-      ))}
-      {ps.length === 0 && <li className="text-muted-foreground">No dispatchers or responders yet.</li>}
+      {sorted.length === 0 && <li className="text-sm text-muted-foreground">No players yet.</li>}
     </ol>
   );
 }
 
-const STATUS_CLASS: Record<string, string> = {
-  open: "text-destructive", en_route: "text-primary", on_scene: "text-accent",
+const KIND_CLASS: Record<string, string> = {
+  join: "text-muted-foreground",
+  round: "text-primary",
+  clue: "text-accent",
+  guess: "text-muted-foreground",
+  correct: "text-accent",
+  reveal: "text-warning",
+  skip: "text-warning",
+  final: "text-primary",
+  reset: "text-muted-foreground",
 };
 
-export function Queue({ state, now, selectedId, onSelect }: { state: State; now: number; selectedId?: number | null; onSelect: (id: number) => void }) {
-  const q = state.incidents.filter((i) => i.status !== "resolved").sort((a, b) => priority(b, now) - priority(a, now));
+export function Feed({ events, limit = 10 }: { events: LogEvent[]; limit?: number }) {
+  const shown = events.slice(-limit).reverse();
   return (
-    <ul className="space-y-1.5">
-      {q.map((i) => {
-        const unit = state.units.find((u) => u.id === i.unitId);
-        const eta = unit?.etaAt && i.status === "en_route" ? Math.max(0, Math.ceil((unit.etaAt - now) / 1000)) : null;
-        return (
-          <li key={i.id}>
-            <button onClick={() => onSelect(i.id)} className={`w-full rounded-md border p-2 text-left text-sm transition-colors ${selectedId === i.id ? "border-primary bg-secondary" : "border-border bg-card hover:bg-secondary"}`}>
-              <div className="flex justify-between font-mono text-xs">
-                <span>#{i.id} {i.type.toUpperCase()}</span>
-                <span className={i.severity >= 4 ? "text-destructive" : "text-warning"}>SEV {i.severity} · P{priority(i, now)}</span>
-              </div>
-              <div className="truncate text-muted-foreground">{i.note || "No note"} · {Math.floor((now - i.createdAt) / 1000)}s ago</div>
-              <div className={`font-mono text-[10px] tracking-widest ${STATUS_CLASS[i.status] ?? "text-muted-foreground"}`}>
-                {i.status.replace("_", " ").toUpperCase()}{unit ? ` · ${unit.callsign}` : ""}{eta != null ? ` · ETA ${eta}s` : ""}
-              </div>
-            </button>
-          </li>
-        );
-      })}
-      {q.length === 0 && <li className="text-sm text-muted-foreground">All clear — no active incidents.</li>}
+    <ul className="space-y-1 font-mono text-xs">
+      {shown.map((e) => (
+        <li key={e.id} className={KIND_CLASS[e.kind] ?? "text-foreground"}>{e.text}</li>
+      ))}
+      {shown.length === 0 && <li className="text-muted-foreground">Nothing yet — start a game!</li>}
     </ul>
+  );
+}
+
+export function TimerBar({ endsAt, now, total }: { endsAt: number; now: number; total: number }) {
+  const left = Math.max(0, endsAt - now);
+  const pct = Math.min(100, (left / total) * 100);
+  const urgent = left < 5_000;
+  return (
+    <div className="flex items-center gap-3">
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+        <div className={`h-full transition-all ${urgent ? "bg-destructive" : "bg-primary"}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className={`font-mono text-sm ${urgent ? "text-destructive" : "text-muted-foreground"}`}>{Math.ceil(left / 1000)}s</span>
+    </div>
   );
 }
