@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CityMap } from "@/components/CityMap";
 import { Feed, Leaderboard, Queue, Stats } from "@/components/Panels";
+import { AlertBanner, useEventAlerts } from "@/lib/alerts";
 import { resetRoom, useLeaderTick, useNow, useRoom } from "@/lib/engine";
 
 export const Route = createFileRoute("/board")({
@@ -19,9 +20,11 @@ function Board() {
   const state = useRoom();
   const now = useNow(500);
   useLeaderTick();
+  const alert = useEventAlerts(state);
   if (!state) return null;
   return (
     <main className="grid min-h-screen gap-4 p-4 lg:grid-cols-[1fr_400px]">
+      <AlertBanner alert={alert} />
       <section className="flex flex-col gap-3">
         <header className="flex items-center justify-between">
           <Link to="/" className="text-2xl font-bold">FirstWave <span className="font-mono text-xs text-primary">● LIVE</span></Link>
