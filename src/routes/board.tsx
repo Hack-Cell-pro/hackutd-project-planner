@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { CityMap } from "@/components/CityMap";
 import { Feed, Leaderboard, Queue, Stats } from "@/components/Panels";
 import { AlertBanner, useEventAlerts } from "@/lib/alerts";
-import { resetRoom, useLeaderTick, useNow, useRoom } from "@/lib/engine";
+import { useLeaderTick, useNow, useRoom } from "@/lib/live";
 
 export const Route = createFileRoute("/board")({
   head: () => ({
@@ -28,7 +28,6 @@ function Board() {
       <section className="flex flex-col gap-3">
         <header className="flex items-center justify-between">
           <Link to="/" className="text-2xl font-bold">FirstWave <span className="font-mono text-xs text-primary">● LIVE</span></Link>
-          <button onClick={() => { if (confirm("Clear the whole room?")) resetRoom(); }} className="font-mono text-xs text-muted-foreground hover:text-destructive">reset room</button>
         </header>
         <Stats state={state} now={now} />
         <div className="aspect-square max-h-[calc(100vh-11rem)] w-full">
