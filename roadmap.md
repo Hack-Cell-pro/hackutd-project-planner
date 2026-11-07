@@ -1,9 +1,10 @@
 # Roadmap
 - [x] Pick a simpler, more fun game concept → Emoji Charades (cluer describes a secret phrase with emojis only; room races to guess)
-- [ ] Rewrite Spacetime module for Emoji Charades (rounds, clue/guess/reveal phases, speed scoring, host controls)
-- [ ] Regenerate client bindings, rewrite app screens (join, play, big screen)
-- [ ] Update engine stand-in + tests, verify end-to-end, have user republish module
-- [ ] Swap phrase deck for silly everyday/meme phrases (user request: search Google for meme/classic phrases)
+- [x] Rewrite Spacetime module for Emoji Charades (rounds, clue/guess/reveal phases, speed scoring, host controls)
+- [x] Regenerate client bindings, rewrite app screens (join, play, big screen)
+- [x] Update engine stand-in + tests (14 app + 5 module tests pass), verify screens end-to-end
+- [x] Swap phrase deck for silly everyday/meme phrases (32 phrases: everyday situations + meme classics)
+- [ ] User republishes the module: git pull → cd spacetime/firstwave → npm install → spacetime publish --server maincloud firstwave (confirm data clear with y)
 - [x] Plan for both tracks
 - [x] FirstWave UI: landing, room, board (local stand-in for the Spacetime backend)
 - [x] Spacetime module source for FirstWave (user publishes it with the Spacetime CLI; it needs their login)
