@@ -80,7 +80,7 @@ const me = (ctx: any) => {
 const queueTick = (ctx: any) =>
   ctx.db.tickSchedule.insert({ scheduledId: 0n, scheduledAt: ScheduleAt.interval(TICK_EVERY) });
 
-spacetimedb.init((ctx) => {
+export const init = spacetimedb.init((ctx) => {
   const seed = [
     ["ENGINE 7", "fire", 20, 25],
     ["LADDER 3", "fire", 75, 70],
@@ -98,12 +98,12 @@ spacetimedb.init((ctx) => {
   queueTick(ctx);
 });
 
-spacetimedb.clientConnected((ctx) => {
+export const onConnect = spacetimedb.clientConnected((ctx) => {
   const p = ctx.db.player.identity.find(ctx.sender);
   if (p) ctx.db.player.identity.update({ ...p, online: true });
 });
 
-spacetimedb.clientDisconnected((ctx) => {
+export const onDisconnect = spacetimedb.clientDisconnected((ctx) => {
   const p = ctx.db.player.identity.find(ctx.sender);
   if (p) ctx.db.player.identity.update({ ...p, online: false });
 });
